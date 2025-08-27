@@ -1,38 +1,39 @@
-# My HA Add-ons (Hello World)
+# MCP HA Tools Add‑on
 
-Dette repoet inneholder en minimal Home Assistant add-on: **Hello World**.
+This repository contains a Home Assistant add‑on that exposes local **Model Context Protocol (MCP)** tools to the Conversation agent in Home Assistant. It allows your voice assistant to call custom tools such as `last_state`, `history_range` and `energy_sum` to access data from your Home Assistant instance without relying on external services.
 
-## Auto-oppdatering i Home Assistant
+## Repository structure
 
-Selve auto-oppdateringen styres av Home Assistant Supervisor. Du trenger ikke å legge inn ekstra kode i add-onen.
-Slik aktiverer du auto-oppdatering for denne add-onen:
+The repo consists of two parts:
 
-1. Installer repoet i **Add-on Store** (Settings → Add-ons → Add-on Store → ⋮ → Repositories → legg inn repo-URL).
-2. Åpne add-on-kortet **Hello World** etter installasjon.
-3. Klikk **⋮** (meny) oppe til høyre eller bruk bryteren i UI, og aktiver **Auto update** (Auto-oppdater).
-   - Når denne er på, vil Supervisor automatisk oppdatere add-onen når en ny versjon publiseres i dette repoet.
+| Path | Description |
+| --- | --- |
+| `repository.json` | Metadata describing this add‑on repository for Home Assistant. |
+| `mcp‑ha‑tools/` | The add‑on itself, including its configuration, Dockerfile and runtime scripts. |
 
-### Viktig for at auto-oppdatering skal fungere bra
-- **Versjonsøkning:** Hver gang du endrer add-onen, øk `version` i `hello-world/config.json` (f.eks. `0.1.1` → `0.1.2`).
-- **Tag/release (anbefalt):** Opprett en GitHub tag/release for samme versjon (f.eks. `v0.1.2`). Dette gjør det tydelig hva som er siste versjon.
-- **Changelog:** Oppdater `CHANGELOG.md` med hva som er endret per versjon.
+## Add‑on details
 
-Home Assistant vil automatisk oppdage at en ny versjon er tilgjengelig når du pusher endringer til GitHub-repoet og øker versjonsnummeret i `config.json`.
+When the add‑on starts it launches a small SSE server on port **8080** that registers several MCP tools for Home Assistant's Conversation agent. These tools provide safe, read‑only access to state history and energy statistics via Home Assistant’s REST API. You can install this repository in the **Add‑on Store** and enable the add‑on via the MCP Client integration.
 
-## Struktur
-```
-ha-addons-hello/
-├─ repository.json
-└─ hello-world/
-   ├─ config.json
-   ├─ Dockerfile
-   └─ run.sh
-```
+### Auto update
 
-## Lokal testing (valgfritt)
-- Du kan bygge containeren lokalt: `docker build -t hello-world-addon ./hello-world`
-- Kjør lokalt (kun for test, ikke via Supervisor): `docker run --rm -it hello-world-addon`
+Home Assistant supports automatic updates for add‑ons through the Supervisor. To make use of this feature:
 
-## Endre beskrivelse/metadata
-- Oppdater `hello-world/config.json` feltene `name`, `description`, `version`, `arch` osv. etter behov.
-- `repository.json` i roten bør peke til riktig GitHub-URL og inneholde vedlikeholder-info.
+1. Increment the `version` field in `mcp‑ha‑tools/config.json` whenever you make changes to the add‑on code.
+2. Commit and push the updated files to your GitHub repository.
+3. In Home Assistant, enable **Auto update** for the installed add‑on. The Supervisor will periodically check your repository and automatically download new versions when they become available.
+
+## Installing
+
+Follow these steps to install the MCP tools add‑on:
+
+1. Push this repository to GitHub at the URL specified in `repository.json`. Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username before pushing.
+2. In Home Assistant, navigate to **Settings → Add‑ons → Add‑on Store**.
+3. Click the menu (⋮) → **Repositories** and add the GitHub URL of this repository.
+4. Refresh the page; you should see the **MCP HA Tools Server** listed in the Add‑on Store.
+5. Install and start the add‑on.
+6. Add the MCP client integration via **Settings → Integrations** and provide the SSE endpoint `http://homeassistant:8080/sse` (or similar) from the add‑on when prompted. This enables the Conversation agent to discover and call your custom tools.
+
+## Contributing
+
+Feel free to extend the add‑on by adding additional MCP tools or improving the documentation. Remember to bump the `version` in `config.json` when you change behaviour, and ensure all text remains in English so it is easy for others to understand.

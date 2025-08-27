@@ -1,5 +1,5 @@
 {
-  "name": "My HA Add-ons",
-  "url": "https://github.com/<ditt-brukernavn>/ha-addons-hello",
-  "maintainer": "<Ditt Navn> <you@example.com>"
+  "name": "My HA MCP Add-ons",
+  "url": "https://github.com/YOUR_GITHUB_USERNAME/ha-addons-mcp",
+  "maintainer": "Your Name <your.email@example.com>"
 }
