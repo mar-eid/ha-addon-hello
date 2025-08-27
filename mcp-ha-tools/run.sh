@@ -6,7 +6,8 @@ LOG_LEVEL="$(python - <<'PY' 2>/dev/null || echo INFO)
 import json
 try:
     with open('/data/options.json') as f:
-        print(json.load(f).get('log_level','INFO'))
+        val = str(json.load(f).get('log_level','INFO')).upper()
+        print(val if val in ['DEBUG','INFO','WARNING','ERROR','CRITICAL','NOTSET'] else 'INFO')
 except Exception:
     print('INFO')
 PY
@@ -16,6 +17,5 @@ echo "Starting MCP HA Tools Server ..."
 echo "HA_URL=${HA_URL}"
 echo "LOG_LEVEL=${LOG_LEVEL}"
 
-# Export for app; map to uvicorn log-level (lowercase)
 export LOG_LEVEL
 exec uvicorn server:app --host 0.0.0.0 --port 8080 --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"

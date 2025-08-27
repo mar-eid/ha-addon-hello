@@ -1,39 +1,82 @@
-# MCP HA Tools Add‑on
+# MCP HA Tools Server (Add-on)
 
-This repository contains a Home Assistant add‑on that exposes local **Model Context Protocol (MCP)** tools to the Conversation agent in Home Assistant. It allows your voice assistant to call custom tools such as `last_state`, `history_range` and `energy_sum` to access data from your Home Assistant instance without relying on external services.
+This repository provides a Home Assistant add-on that runs a local **Model Context Protocol (MCP) SSE server**.  
+It exposes tools for the Home Assistant Conversation agent, giving LLMs read-only access to state history, energy statistics, and direct SQL queries (PostgreSQL/Timescale).
 
-## Repository structure
+## Features
+- Tools available to Conversation:
+  - `last_state(entity_id)`
+  - `history_range(entity_id, start_iso, end_iso, no_attributes=True)`
+  - `energy_sum(statistic_id, start_iso, end_iso, period="hour")`
+  - `sql_query(query, limit=200)` (read-only, SELECT only)
+  - `db_status()` (check DB connection)
+- Configurable log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NOTSET`).
+- Logs written to Home Assistant add-on log buffer (view in Supervisor UI).
+- Automatic DB connection check at startup.
 
-The repo consists of two parts:
+## Installation
+1. Add this repository to Home Assistant:  
+   **Settings → Add-ons → Add-on Store → ⋮ → Repositories**  
+   Paste the repo URL:  
+https://github.com/mar-eid/ha-addon-hello
 
-| Path | Description |
-| --- | --- |
-| `repository.json` | Metadata describing this add‑on repository for Home Assistant. |
-| `mcp‑ha‑tools/` | The add‑on itself, including its configuration, Dockerfile and runtime scripts. |
+markdown
+Kopier kode
 
-## Add‑on details
+2. Find and install **MCP HA Tools Server**.
 
-When the add‑on starts it launches a small SSE server on port **8080** that registers several MCP tools for Home Assistant's Conversation agent. These tools provide safe, read‑only access to state history and energy statistics via Home Assistant’s REST API. You can install this repository in the **Add‑on Store** and enable the add‑on via the MCP Client integration.
+3. Configure the add-on under **Configuration**:
+- `ha_url` (default: `http://homeassistant:8123`)
+- `log_level` (default: `INFO`)
+- `db_host`, `db_port`, `db_name`, `db_user`, `db_password` for PostgreSQL/Timescale.
 
-### Auto update
+4. Start the add-on.
 
-Home Assistant supports automatic updates for add‑ons through the Supervisor. To make use of this feature:
+## Testing the Add-on
 
-1. Increment the `version` field in `mcp‑ha‑tools/config.json` whenever you make changes to the add‑on code.
-2. Commit and push the updated files to your GitHub repository.
-3. In Home Assistant, enable **Auto update** for the installed add‑on. The Supervisor will periodically check your repository and automatically download new versions when they become available.
+### 1. Verify the SSE endpoint
+Open a browser and go to:
 
-## Installing
+http://homeassistant.local:8080/sse
 
-Follow these steps to install the MCP tools add‑on:
+sql
+Kopier kode
 
-1. Push this repository to GitHub at the URL specified in `repository.json`. Replace `YOUR_GITHUB_USERNAME` with your actual GitHub username before pushing.
-2. In Home Assistant, navigate to **Settings → Add‑ons → Add‑on Store**.
-3. Click the menu (⋮) → **Repositories** and add the GitHub URL of this repository.
-4. Refresh the page; you should see the **MCP HA Tools Server** listed in the Add‑on Store.
-5. Install and start the add‑on.
-6. Add the MCP client integration via **Settings → Integrations** and provide the SSE endpoint `http://homeassistant:8080/sse` (or similar) from the add‑on when prompted. This enables the Conversation agent to discover and call your custom tools.
+- If the add-on is running, you should see an SSE stream start (connection stays open).
+- If you see “connection refused”, the add-on is not running or the port is blocked.
 
-## Contributing
+### 2. Check the logs in Home Assistant
+Go to:  
+**Settings → Add-ons → MCP HA Tools Server → Log**
 
-Feel free to extend the add‑on by adding additional MCP tools or improving the documentation. Remember to bump the `version` in `config.json` when you change behaviour, and ensure all text remains in English so it is easy for others to understand.
+- On successful DB connection, you will see:
+✅ PostgreSQL/Timescale connection successful (host=core-postgres, db=homeassistant)
+
+diff
+Kopier kode
+- If something failed, you’ll see:
+⚠️ PostgreSQL/Timescale connection failed: ...
+
+mathematica
+Kopier kode
+
+### 3. Check DB connectivity via `db_status`
+If you have the MCP Client integration enabled in HA:
+- Ask your Conversation agent:  
+> “Call db_status tool”
+- Or run from an MCP client:
+```json
+{
+  "tool": "db_status",
+  "arguments": {}
+}
+You should get back a JSON object with the current UTC time reported from the database.
+
+Development Notes
+PostgreSQL access is enforced as read-only (connection is opened with readonly=True and autocommit).
+
+sql_query rejects any non-SELECT statements for safety.
+
+Default DB settings assume HA’s community Postgres add-on with a read-only user.
+
+Remember to bump version in config.json and update CHANGELOG.md on every release.

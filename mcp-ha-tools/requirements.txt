@@ -3,3 +3,4 @@ modelcontextprotocol[server]
 starlette
 uvicorn
 httpx
+psycopg2-binary
