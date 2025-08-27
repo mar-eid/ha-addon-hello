@@ -19,3 +19,10 @@ echo "LOG_LEVEL=${LOG_LEVEL}"
 
 export LOG_LEVEL
 exec uvicorn server:app --host 0.0.0.0 --port 8080 --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
+
+
+echo "Python: $(python -V)"
+echo "Uvicorn: $(uvicorn --version || true)"
+
+export LOG_LEVEL
+exec uvicorn server:app --host 0.0.0.0 --port 8080 --log-level "$(echo "${LOG_LEVEL}" | tr '[:upper:]' '[:lower:]')"
