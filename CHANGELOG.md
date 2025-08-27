@@ -1,4 +1,7 @@
 # Changelog
+## 0.1.3
+- Added Logging
+
 ## 0.1.2
 - Added MCP server
 
