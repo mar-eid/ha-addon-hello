@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.5
+- Added new configuration toggle `enable_write` (default: false).
+  - When false: DB connection is opened in read-only mode and `sql_query` enforces SELECT-only.
+  - When true: DB connection allows write/DDL operations (use with caution).
+- Environment variable `ENABLE_WRITE` is exported from config.
+- Extended logging: startup log now shows whether write mode is enabled.
+- Updated README with:
+  - Detailed configuration instructions for SQL connection.
+  - Example using PostgreSQL/Timescale URI.
+  - Clear explanation of write-safety toggle.
+- Version bump to 0.1.5.
+
 ## 0.1.4
 - Added full support for standard Home Assistant log levels (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`, `NOTSET`).
 - Added PostgreSQL/TimescaleDB connection options (`db_host`, `db_port`, `db_name`, `db_user`, `db_password`).
@@ -7,7 +19,7 @@
 - New tool: `sql_query(query, limit=200)` for read-only SELECT queries against the recorder DB.
 - New tool: `db_status()` to check DB connectivity and return current UTC timestamp.
 - Extended logging in `server.py` (tool calls, DB connection success/failure).
-- Updated `README.md` with testing instructions, including browser check via `http://homeassistant.local:8080/sse`.
+- Updated README.md with testing instructions, including browser check via `http://homeassistant.local:8080/sse`.
 
 ## 0.1.3
 - Internal build (not released).

@@ -1,6 +1,6 @@
 {
   "name": "MCP HA Tools Server",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "slug": "mcp_ha_tools_server",
   "description": "Local MCP SSE server exposing history/energy tools for Conversation.",
   "arch": ["aarch64", "amd64", "armv7", "armhf", "i386"],
@@ -15,7 +15,8 @@
     "db_port": 5432,
     "db_name": "homeassistant",
     "db_user": "ha_reader",
-    "db_password": "CHANGE_ME"
+    "db_password": "CHANGE_ME",
+    "enable_write": false
   },
   "schema": {
     "ha_url": "str?",
@@ -24,7 +25,8 @@
     "db_port": "int?",
     "db_name": "str?",
     "db_user": "str?",
-    "db_password": "str?"
+    "db_password": "str?",
+    "enable_write": "bool?"
   },
   "environment": {
     "HA_URL": "http://homeassistant:8123",
@@ -33,7 +35,9 @@
     "DB_PORT": "{options.db_port}",
     "DB_NAME": "{options.db_name}",
     "DB_USER": "{options.db_user}",
-    "DB_PASSWORD": "{options.db_password}"
+    "DB_PASSWORD": "{options.db_password}",
+    "ENABLE_WRITE": "{options.enable_write}"
   },
-  "url": "https://github.com/mar-eid/ha-addon-hello"
+  "url": "https://github.com/mar-eid/ha-addon-hello",
+  "documentation": "https://github.com/mar-eid/ha-addon-hello/blob/main/README.md"
 }
