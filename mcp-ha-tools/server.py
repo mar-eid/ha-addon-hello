@@ -17,7 +17,6 @@ from mcp.server.sse import SseServerTransport
 # Environment / configuration
 # ---------------------------
 
-# Logging level (default INFO)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 # DB settings (Timescale/PostgreSQL)
@@ -31,24 +30,23 @@ DB_CONNECT_TIMEOUT = int(os.environ.get("DB_CONNECT_TIMEOUT", "5"))  # seconds
 # Safety toggle: default False (read-only)
 ENABLE_WRITE = str(os.environ.get("ENABLE_WRITE", "false")).lower() == "true"
 
-# Supervisor / Core API auth
+# Supervisor / Core API auth (optional)
 SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN")
-HA_TOKEN = os.environ.get("HA_TOKEN")  # fallback outside Supervisor
+HA_TOKEN = os.environ.get("HA_TOKEN")  # optional LLAT via options
 HA_URL_BASE = os.environ.get("HA_URL", "http://homeassistant:8123").rstrip("/")
 
+API_DISABLED = False
 if SUPERVISOR_TOKEN:
-    # Use Supervisor proxy when available
     API_BASE = "http://supervisor/core/api"
     AUTH_HEADER = f"Bearer {SUPERVISOR_TOKEN}"
-else:
-    # Fallback to direct Core API (requires HA_TOKEN)
-    if not HA_TOKEN:
-        raise RuntimeError(
-            "No API token available. Enable 'homeassistant_api' (Supervisor) "
-            "or set HA_TOKEN for direct Core access."
-        )
+elif HA_TOKEN:
     API_BASE = f"{HA_URL_BASE}/api"
     AUTH_HEADER = f"Bearer {HA_TOKEN}"
+else:
+    # No token available: run without HA Core API access
+    API_BASE = f"{HA_URL_BASE}/api"
+    AUTH_HEADER = None
+    API_DISABLED = True
 
 
 # -------------
@@ -64,13 +62,15 @@ logging.basicConfig(
 logger = logging.getLogger("mcp-ha-tools")
 
 logger.info(
-    "Starting MCP HA Tools Server (log_level=%s, api_base=%s, db_host=%s, db_port=%s, db_name=%s, db_user=%s, enable_write=%s)",
-    LOG_LEVEL, API_BASE, DB_HOST, DB_PORT, DB_NAME, DB_USER, ENABLE_WRITE
+    "Starting MCP HA Tools Server v0.1.10 (log_level=%s, api_base=%s, api_enabled=%s, db_host=%s, db_port=%s, db_name=%s, db_user=%s, enable_write=%s)",
+    LOG_LEVEL, API_BASE, not API_DISABLED, DB_HOST, DB_PORT, DB_NAME, DB_USER, ENABLE_WRITE
 )
 if SUPERVISOR_TOKEN:
     logger.info("Auth: using SUPERVISOR_TOKEN via Supervisor proxy")
-else:
+elif HA_TOKEN:
     logger.info("Auth: using HA_TOKEN against %s", API_BASE)
+else:
+    logger.warning("Auth: no token provided — HA Core API tools are DISABLED (SQL tools still available)")
 
 
 # -------------------------------------------
@@ -101,18 +101,13 @@ def _db_connect():
 
 
 def _startup_db_probe() -> bool:
-    """
-    Try a tiny probe to confirm DB is reachable. Log success/failure.
-    """
+    """Try a tiny probe to confirm DB is reachable. Log success/failure."""
     try:
         with _db_connect() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1;")
                 _ = cur.fetchone()
-        logger.info(
-            "✅ PostgreSQL/Timescale connection successful (host=%s, db=%s, readonly=%s)",
-            DB_HOST, DB_NAME, not ENABLE_WRITE
-        )
+        logger.info("✅ PostgreSQL/Timescale connection successful (host=%s, db=%s, readonly=%s)", DB_HOST, DB_NAME, not ENABLE_WRITE)
         return True
     except Exception as e:
         logger.warning("⚠️ PostgreSQL/Timescale connection failed: %s", e)
@@ -127,24 +122,37 @@ _startup_db_probe()
 # HA API helper
 # -------------
 def _headers():
-    return {"Authorization": AUTH_HEADER, "Content-Type": "application/json"}
+    if AUTH_HEADER:
+        return {"Authorization": AUTH_HEADER, "Content-Type": "application/json"}
+    # Should not be called when API is disabled; tools guard for that
+    return {"Content-Type": "application/json"}
 
 
 # ------------
 # MCP server
 # ------------
-# Bumped internal MCP version tag to 0.1.8
-mcp = FastMCP("ha-conversation-tools", version="0.1.8")
+mcp = FastMCP("ha-conversation-tools", version="0.1.10")
 
 
 # ------------------------
 # Tools: HA REST endpoints
 # ------------------------
+def _api_guard() -> Optional[Dict[str, Any]]:
+    if API_DISABLED:
+        return {
+            "ok": False,
+            "error": "Home Assistant Core API access is disabled. Provide SUPERVISOR_TOKEN (homeassistant_api: true) or set an HA_TOKEN (Long-Lived Access Token) in add-on options."
+        }
+    return None
+
+
 @mcp.tool()
 def last_state(entity_id: str) -> Dict[str, Any]:
-    """
-    Return last known state via /api/states/<entity_id>.
-    """
+    """Return last known state via /api/states/<entity_id>."""
+    guard = _api_guard()
+    if guard:
+        return guard
+
     logger.debug("last_state(entity_id=%s)", entity_id)
     url = f"{API_BASE}/states/{entity_id}"
     with httpx.Client(timeout=15) as s:
@@ -165,9 +173,11 @@ def last_state(entity_id: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def history_range(entity_id: str, start_iso: str, end_iso: str, no_attributes: bool = True) -> Dict[str, Any]:
-    """
-    Return history via /api/history/period/<start_iso> with ?end_time=<end_iso>.
-    """
+    """Return history via /api/history/period/<start_iso> with ?end_time=<end_iso>."""
+    guard = _api_guard()
+    if guard:
+        return guard
+
     logger.debug(
         "history_range(entity_id=%s, start=%s, end=%s, no_attributes=%s)",
         entity_id, start_iso, end_iso, no_attributes
@@ -188,9 +198,11 @@ def history_range(entity_id: str, start_iso: str, end_iso: str, no_attributes: b
 
 @mcp.tool()
 def energy_sum(statistic_id: str, start_iso: str, end_iso: str, period: str = "hour") -> Dict[str, Any]:
-    """
-    Sum energy from recorder.get_statistics for a statistic_id (e.g., energy).
-    """
+    """Sum energy from recorder.get_statistics for a statistic_id (e.g., energy)."""
+    guard = _api_guard()
+    if guard:
+        return guard
+
     logger.debug(
         "energy_sum(statistic_id=%s, start=%s, end=%s, period=%s)",
         statistic_id, start_iso, end_iso, period
@@ -221,10 +233,7 @@ def energy_sum(statistic_id: str, start_iso: str, end_iso: str, period: str = "h
 # Tools: PostgreSQL (safe by default)
 # ----------------------------
 def _is_safe_select(sql: str) -> bool:
-    """
-    Very simple guard: allow only SELECT (after trimming comments/whitespace).
-    Blocks UPDATE/DELETE/INSERT/DDL etc. Ignored if ENABLE_WRITE=True.
-    """
+    """Allow only SELECT (after trimming comments/whitespace)."""
     stripped = sql.lstrip()
     # Strip leading comments: /* ... */ and -- ...
     while True:
@@ -246,11 +255,7 @@ def _is_safe_select(sql: str) -> bool:
 
 @mcp.tool()
 def sql_query(query: str, limit: int = 200, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Run SQL against the recorder DB.
-    - If ENABLE_WRITE=False: only SELECT is allowed (server-enforced) and connection is read-only.
-    - If ENABLE_WRITE=True: any SQL is allowed; transaction control via autocommit=False.
-    """
+    """Run SQL against the recorder DB (safe by default, writes require ENABLE_WRITE=true)."""
     logger.debug("sql_query(limit=%s) query=%s", limit, query)
 
     if not ENABLE_WRITE and not _is_safe_select(query):
@@ -292,10 +297,10 @@ def db_status() -> Dict[str, Any]:
                 cur.execute("SELECT NOW() AT TIME ZONE 'UTC' AS utc_now;")
                 row = cur.fetchone()
         logger.info("db_status OK: %s", row)
-        return {"ok": True, "detail": row, "enable_write": ENABLE_WRITE}
+        return {"ok": True, "detail": row, "enable_write": ENABLE_WRITE, "api_enabled": not API_DISABLED}
     except Exception as e:
         logger.warning("db_status FAILED: %s", e)
-        return {"ok": False, "error": str(e), "enable_write": ENABLE_WRITE}
+        return {"ok": False, "error": str(e), "enable_write": ENABLE_WRITE, "api_enabled": not API_DISABLED}
 
 
 # --------------------------
