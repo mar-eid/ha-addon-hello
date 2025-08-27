@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.7
+- Fixed critical startup issues in `run.sh` and `Dockerfile`:
+  - Replaced HEREDOC with a Python one-liner to avoid `unterminated here-document` warnings.
+  - Added safe default for `HA_URL` so `set -u` no longer crashes if unset.
+  - Cleaned log-level parsing to avoid stray CR/LF causing `--log-level 'info\n)'` errors.
+  - Updated Dockerfile with `WORKDIR /app` so `uvicorn` can import `server.py`.
+  - Normalized `run.sh` line endings and ensured it executes with `uvicorn --app-dir /app server:app`.
+- These fixes resolve:
+  - `HA_URL: unbound variable`
+  - `Invalid value for '--log-level': 'info\n)'`
+  - `Error loading ASGI app. Could not import module "server"`.
+- Version bump to 0.1.7.
+
 ## 0.1.6
 - Config update: `ha_url` now properly comes from `options` and is exported as `HA_URL`.
 - This allows the add-on user to configure Home Assistant URL directly in the UI.

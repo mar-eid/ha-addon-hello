@@ -15,7 +15,7 @@ from mcp.server.sse import SseServerTransport
 # ---------------------------
 # Environment / configuration
 # ---------------------------
-HA_URL = os.environ.get("HA_URL", "http://homeassistant:8123").rstrip("/")
+HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123").rstrip("/")
 HA_TOKEN = os.environ.get("HA_TOKEN")
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 

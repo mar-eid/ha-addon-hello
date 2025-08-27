@@ -1,6 +1,6 @@
 {
   "name": "MCP HA Tools Server",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "slug": "mcp_ha_tools_server",
   "description": "Local MCP SSE server exposing history, energy tools and optional SQL access for Conversation.",
   "arch": ["aarch64", "amd64", "armv7", "armhf", "i386"],

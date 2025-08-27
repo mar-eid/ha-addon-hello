@@ -1,9 +1,7 @@
 ARG BUILD_FROM
 FROM $BUILD_FROM
 
-# Alpine base i HA: installer systempakker
-# - python3 & pip
-# - psycopg2 via apk (stabil mot musl/Alpine)
+# Systempakker (Alpine) – python + pip + psycopg2 fra apk
 RUN apk add --no-cache \
       python3 \
       py3-pip \
@@ -18,15 +16,20 @@ RUN python3 -m venv /opt/venv --system-site-packages \
       uvicorn \
       httpx
 
-# Gjør venv synlig i PATH
+# Gjør venv tilgjengelig i PATH
 ENV PATH="/opt/venv/bin:${PATH}"
 
-# Kopier kode og oppstartsskript
-COPY run.sh /run.sh
-COPY server.py /app/server.py
-RUN chmod +x /run.sh
+# Sett arbeidskatalog til /app (viktig for uvicorn --app-dir /app)
+WORKDIR /app
 
-# (valgfritt – for dokumentasjon)
+# Kopier kode og oppstartsskript
+COPY server.py /app/server.py
+COPY run.sh /run.sh
+
+# Normaliser linjeslutt på run.sh (hindrer HEREDOC/CRLF-problemer) og gjør den kjørbar
+RUN sed -i 's/\r$//' /run.sh && chmod +x /run.sh
+
+# (valgfritt) eksponer porten
 EXPOSE 8080
 
 # HA-addons starter /run.sh
