@@ -11,7 +11,7 @@
   "homeassistant_api": true,
 
   "options": {
-    "ha_url": "http://supervisor/core",
+    "ha_url": "http://supervisor/core",           // brukes nå mest til referanse/visning
     "log_level": "INFO",
     "db_host": "core-postgres",
     "db_port": 5432,
@@ -40,7 +40,7 @@
     "DB_USER": "{options.db_user}",
     "DB_PASSWORD": "{options.db_password}",
     "ENABLE_WRITE": "{options.enable_write}"
-
+    // Ikke sett HA_TOKEN her – vi bruker SUPERVISOR_TOKEN automatisk
   },
 
   "url": "https://github.com/mar-eid/ha-addon-hello",
