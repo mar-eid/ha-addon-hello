@@ -1,6 +1,6 @@
 {
   "name": "Hello World",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "slug": "hello_world",
   "description": "En minimal add-on som logger Hello World.",
   "arch": [
