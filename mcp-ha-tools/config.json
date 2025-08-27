@@ -19,11 +19,7 @@
   },
   "schema": {
     "ha_url": "str?",
-    "log_level": {
-      "type": "select",
-      "options": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET"],
-      "default": "INFO"
-    },
+    "log_level": "list(DEBUG|INFO|WARNING|ERROR|CRITICAL|NOTSET)?",
     "db_host": "str?",
     "db_port": "int?",
     "db_name": "str?",

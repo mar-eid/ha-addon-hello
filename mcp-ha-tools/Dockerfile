@@ -1,15 +1,19 @@
-FROM python:3.12-slim
+ARG BUILD_FROM
+FROM $BUILD_FROM
 
-# Install run‑time dependencies. Using slim base reduces image size.
-RUN pip install --no-cache-dir "modelcontextprotocol[server]" starlette uvicorn httpx
+# Install system deps (Alpine base)
+RUN apk add --no-cache python3 py3-pip py3-psycopg2 \
+    && python3 -m pip install --no-cache-dir \
+       "modelcontextprotocol[server]" \
+       starlette uvicorn httpx
 
-# Copy the service code and helper script into the image
-COPY server.py /app/server.py
+# Copy code
 COPY run.sh /run.sh
+COPY server.py /app/server.py
 RUN chmod +x /run.sh
 
-# Expose port 8080 for the SSE server
+# Expose SSE port (host_network true, but useful for docs)
 EXPOSE 8080
 
-# Run the add‑on. The script simply starts Uvicorn to serve the FastMCP SSE application.
+# HA images expect /run.sh as entrypoint
 CMD ["/run.sh"]
