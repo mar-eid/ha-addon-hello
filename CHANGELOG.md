@@ -1,4 +1,7 @@
 # Changelog
+## 0.1.2
+- Added MCP server
+
 ## 0.1.1
 - Seceond version
 

@@ -1,0 +1,5 @@
+# Python dependencies for the MCP HA Tools add‑on.
+modelcontextprotocol[server]
+starlette
+uvicorn
+httpx

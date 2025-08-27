@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "---------------------------------------"
-echo " Hello from Home Assistant add-on! 👋"
-echo " Time: $(date -Iseconds)"
-echo "---------------------------------------"
+# Entry point script for the MCP HA Tools add‑on. It launches the FastMCP SSE server
+# implemented in server.py via Uvicorn. Environment variables HA_URL and HA_TOKEN
+# are provided by Home Assistant when running as an add‑on.
 
-# Hold containeren kjørende så du kan se loggen i Add-on UI
-# (HA stopper add-onen hvis prosessen avslutter)
-tail -f /dev/null
+exec uvicorn server:app --host 0.0.0.0 --port 8080
