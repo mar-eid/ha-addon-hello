@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.8
+- New server.py
+
 ## 0.1.7
 - Fixed critical startup issues in `run.sh` and `Dockerfile`:
   - Replaced HEREDOC with a Python one-liner to avoid `unterminated here-document` warnings.

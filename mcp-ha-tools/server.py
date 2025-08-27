@@ -12,13 +12,15 @@ from starlette.routing import Mount
 from mcp.server.fastmcp import FastMCP
 from mcp.server.sse import SseServerTransport
 
+
 # ---------------------------
 # Environment / configuration
 # ---------------------------
-HA_URL = os.environ.get("HA_URL", "http://homeassistant.local:8123").rstrip("/")
-HA_TOKEN = os.environ.get("HA_TOKEN")
+
+# Logging level (default INFO)
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
+# DB settings (Timescale/PostgreSQL)
 DB_HOST = os.environ.get("DB_HOST", "core-postgres")
 DB_PORT = int(os.environ.get("DB_PORT", "5432"))
 DB_NAME = os.environ.get("DB_NAME", "homeassistant")
@@ -29,11 +31,25 @@ DB_CONNECT_TIMEOUT = int(os.environ.get("DB_CONNECT_TIMEOUT", "5"))  # seconds
 # Safety toggle: default False (read-only)
 ENABLE_WRITE = str(os.environ.get("ENABLE_WRITE", "false")).lower() == "true"
 
-# -------------
-# Validations
-# -------------
-if not HA_TOKEN:
-    raise RuntimeError("HA_TOKEN (Supervisor or Long-Lived Token) is required.")
+# Supervisor / Core API auth
+SUPERVISOR_TOKEN = os.environ.get("SUPERVISOR_TOKEN")
+HA_TOKEN = os.environ.get("HA_TOKEN")  # fallback outside Supervisor
+HA_URL_BASE = os.environ.get("HA_URL", "http://homeassistant:8123").rstrip("/")
+
+if SUPERVISOR_TOKEN:
+    # Use Supervisor proxy when available
+    API_BASE = "http://supervisor/core/api"
+    AUTH_HEADER = f"Bearer {SUPERVISOR_TOKEN}"
+else:
+    # Fallback to direct Core API (requires HA_TOKEN)
+    if not HA_TOKEN:
+        raise RuntimeError(
+            "No API token available. Enable 'homeassistant_api' (Supervisor) "
+            "or set HA_TOKEN for direct Core access."
+        )
+    API_BASE = f"{HA_URL_BASE}/api"
+    AUTH_HEADER = f"Bearer {HA_TOKEN}"
+
 
 # -------------
 # Logging setup
@@ -48,9 +64,14 @@ logging.basicConfig(
 logger = logging.getLogger("mcp-ha-tools")
 
 logger.info(
-    "Starting MCP HA Tools Server (log_level=%s, ha_url=%s, db_host=%s, db_port=%s, db_name=%s, db_user=%s, enable_write=%s)",
-    LOG_LEVEL, HA_URL, DB_HOST, DB_PORT, DB_NAME, DB_USER, ENABLE_WRITE
+    "Starting MCP HA Tools Server (log_level=%s, api_base=%s, db_host=%s, db_port=%s, db_name=%s, db_user=%s, enable_write=%s)",
+    LOG_LEVEL, API_BASE, DB_HOST, DB_PORT, DB_NAME, DB_USER, ENABLE_WRITE
 )
+if SUPERVISOR_TOKEN:
+    logger.info("Auth: using SUPERVISOR_TOKEN via Supervisor proxy")
+else:
+    logger.info("Auth: using HA_TOKEN against %s", API_BASE)
+
 
 # -------------------------------------------
 # DB helper: connect with read-only by default
@@ -78,6 +99,7 @@ def _db_connect():
         conn.set_session(readonly=False, autocommit=False)
     return conn
 
+
 def _startup_db_probe() -> bool:
     """
     Try a tiny probe to confirm DB is reachable. Log success/failure.
@@ -87,34 +109,44 @@ def _startup_db_probe() -> bool:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1;")
                 _ = cur.fetchone()
-        logger.info("✅ PostgreSQL/Timescale connection successful (host=%s, db=%s, readonly=%s)",
-                    DB_HOST, DB_NAME, not ENABLE_WRITE)
+        logger.info(
+            "✅ PostgreSQL/Timescale connection successful (host=%s, db=%s, readonly=%s)",
+            DB_HOST, DB_NAME, not ENABLE_WRITE
+        )
         return True
     except Exception as e:
         logger.warning("⚠️ PostgreSQL/Timescale connection failed: %s", e)
         return False
 
+
 # Probe on startup
 _startup_db_probe()
+
 
 # -------------
 # HA API helper
 # -------------
 def _headers():
-    return {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
+    return {"Authorization": AUTH_HEADER, "Content-Type": "application/json"}
+
 
 # ------------
 # MCP server
 # ------------
-mcp = FastMCP("ha-conversation-tools", version="0.1.0")
+# Bumped internal MCP version tag to 0.1.8
+mcp = FastMCP("ha-conversation-tools", version="0.1.8")
+
 
 # ------------------------
 # Tools: HA REST endpoints
 # ------------------------
 @mcp.tool()
 def last_state(entity_id: str) -> Dict[str, Any]:
+    """
+    Return last known state via /api/states/<entity_id>.
+    """
     logger.debug("last_state(entity_id=%s)", entity_id)
-    url = f"{HA_URL}/api/states/{entity_id}"
+    url = f"{API_BASE}/states/{entity_id}"
     with httpx.Client(timeout=15) as s:
         r = s.get(url, headers=_headers())
         if r.status_code == 404:
@@ -130,13 +162,17 @@ def last_state(entity_id: str) -> Dict[str, Any]:
         "last_changed": data.get("last_changed"),
     }
 
+
 @mcp.tool()
 def history_range(entity_id: str, start_iso: str, end_iso: str, no_attributes: bool = True) -> Dict[str, Any]:
+    """
+    Return history via /api/history/period/<start_iso> with ?end_time=<end_iso>.
+    """
     logger.debug(
         "history_range(entity_id=%s, start=%s, end=%s, no_attributes=%s)",
         entity_id, start_iso, end_iso, no_attributes
     )
-    url = f"{HA_URL}/api/history/period/{start_iso}"
+    url = f"{API_BASE}/history/period/{start_iso}"
     params = {
         "filter_entity_id": entity_id,
         "end_time": end_iso,
@@ -149,13 +185,17 @@ def history_range(entity_id: str, start_iso: str, end_iso: str, no_attributes: b
     rows = data[0] if data else []
     return {"ok": True, "entity_id": entity_id, "rows": rows}
 
+
 @mcp.tool()
 def energy_sum(statistic_id: str, start_iso: str, end_iso: str, period: str = "hour") -> Dict[str, Any]:
+    """
+    Sum energy from recorder.get_statistics for a statistic_id (e.g., energy).
+    """
     logger.debug(
         "energy_sum(statistic_id=%s, start=%s, end=%s, period=%s)",
         statistic_id, start_iso, end_iso, period
     )
-    url = f"{HA_URL}/api/services/recorder/get_statistics"
+    url = f"{API_BASE}/services/recorder/get_statistics"
     payload = {
         "start": start_iso,
         "end": end_iso,
@@ -175,6 +215,7 @@ def energy_sum(statistic_id: str, start_iso: str, end_iso: str, period: str = "h
             except Exception:
                 pass
     return {"ok": True, "statistic_id": statistic_id, "period": period, "total": total, "points": series}
+
 
 # ----------------------------
 # Tools: PostgreSQL (safe by default)
@@ -201,6 +242,7 @@ def _is_safe_select(sql: str) -> bool:
             continue
         break
     return stripped[:6].upper() == "SELECT"
+
 
 @mcp.tool()
 def sql_query(query: str, limit: int = 200, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -240,6 +282,7 @@ def sql_query(query: str, limit: int = 200, params: Optional[Dict[str, Any]] = N
         logger.error("SQL query failed: %s", e)
         return {"ok": False, "error": str(e)}
 
+
 @mcp.tool()
 def db_status() -> Dict[str, Any]:
     """Simple status check for DB connectivity."""
@@ -253,6 +296,7 @@ def db_status() -> Dict[str, Any]:
     except Exception as e:
         logger.warning("db_status FAILED: %s", e)
         return {"ok": False, "error": str(e), "enable_write": ENABLE_WRITE}
+
 
 # --------------------------
 # SSE transport / Starlette
