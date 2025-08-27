@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+- Config update: `ha_url` now properly comes from `options` and is exported as `HA_URL`.
+- This allows the add-on user to configure Home Assistant URL directly in the UI.
+- Version bump to 0.1.6.
+
 ## 0.1.5
 - Added new configuration toggle `enable_write` (default: false).
   - When false: DB connection is opened in read-only mode and `sql_query` enforces SELECT-only.
